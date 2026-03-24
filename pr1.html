@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Project 01 - Financial News Summarizer</title>
+  <style>
+    :root {
+      --bg: #08111f;
+      --panel: #0f1c2f;
+      --ink: #eef5ff;
+      --muted: #adc3df;
+      --accent: #10b981;
+      --accent-2: #38bdf8;
+      --card: #122640;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      color: var(--ink);
+      background: radial-gradient(circle at 10% 10%, #16335f 0%, var(--bg) 45%),
+                  radial-gradient(circle at 80% 0%, #123b2d 0%, transparent 40%),
+                  var(--bg);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 1050px; margin: 0 auto; padding: 28px 18px 40px; }
+    .badge {
+      display: inline-block; padding: 6px 10px; border-radius: 999px;
+      background: rgba(56, 189, 248, 0.15); color: var(--accent-2); font-weight: 700; font-size: 12px;
+      letter-spacing: .06em; text-transform: uppercase;
+    }
+    h1 { margin: 14px 0 8px; font-size: clamp(1.6rem, 4.2vw, 2.4rem); }
+    p.lead { color: var(--muted); margin-top: 0; }
+    .grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+    .card {
+      background: linear-gradient(165deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      padding: 16px;
+      backdrop-filter: blur(4px);
+    }
+    textarea {
+      width: 100%; min-height: 210px; border-radius: 10px; border: 1px solid #2d486c;
+      background: #081526; color: var(--ink); padding: 12px; resize: vertical;
+    }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+    button {
+      border: 0; border-radius: 10px; padding: 10px 14px; font-weight: 700; cursor: pointer;
+      background: linear-gradient(90deg, var(--accent), #34d399); color: #052e16;
+    }
+    select, input[type="range"] {
+      background: #081526; color: var(--ink); border: 1px solid #2d486c; border-radius: 8px; padding: 8px;
+    }
+    .summary { line-height: 1.6; color: #dcfce7; }
+    .meter {
+      height: 10px; border-radius: 999px; background: #1f2d46; overflow: hidden; margin-top: 5px;
+    }
+    .meter > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+    .kpi { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+    .kpi div { background: var(--card); border-radius: 10px; padding: 10px; font-size: 13px; }
+    .kpi b { display: block; font-size: 18px; margin-top: 3px; color: #bbf7d0; }
+    @media (max-width: 840px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Financial News Summarizer</h1>
+    <p class="lead">Hybrid extractive + abstractive summarization for finance text with TF-IDF inspired scoring and quality controls.</p>
+
+    <section class="kpi">
+      <div>Reading Time Reduction<b>~80%</b></div>
+      <div>Best ROUGE-L<b>0.54</b></div>
+      <div>Output Target<b>100-150 words</b></div>
+    </section>
+
+    <div class="grid" style="margin-top:14px;">
+      <section class="card">
+        <h3>Article Input</h3>
+        <textarea id="article" placeholder="Paste financial article text here..."></textarea>
+        <div class="row">
+          <label>Mode
+            <select id="mode">
+              <option value="extractive">Extractive</option>
+              <option value="abstractive">Abstractive</option>
+              <option value="hybrid" selected>Hybrid</option>
+            </select>
+          </label>
+          <label>Length <span id="lenVal">120</span> words</label>
+          <input id="length" type="range" min="60" max="220" value="120">
+          <button id="run">Generate Summary</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Pipeline</h3>
+        <ol>
+          <li>Preprocess and preserve financial entities.</li>
+          <li>Score sentences by lexical + semantic relevance.</li>
+          <li>Select top candidates and remove redundancy.</li>
+          <li>Generate concise output with coherence checks.</li>
+        </ol>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:16px;">
+      <h3>Summary Output</h3>
+      <p id="summary" class="summary">No summary generated yet.</p>
+      <div style="margin-top:12px;">
+        <small>Importance Score</small>
+        <div class="meter"><span id="meter" style="width:0%"></span></div>
+      </div>
+      <div class="row" style="margin-top:12px; color:var(--muted); font-size:13px;">
+        <span>ROUGE-1: <b id="r1">-</b></span>
+        <span>ROUGE-2: <b id="r2">-</b></span>
+        <span>ROUGE-L: <b id="rl">-</b></span>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const length = document.getElementById("length");
+    const lenVal = document.getElementById("lenVal");
+    const run = document.getElementById("run");
+    const article = document.getElementById("article");
+    const summary = document.getElementById("summary");
+    const meter = document.getElementById("meter");
+
+    length.addEventListener("input", () => {
+      lenVal.textContent = length.value;
+    });
+
+    run.addEventListener("click", async () => {
+      const text = article.value.trim();
+      if (!text) {
+        summary.textContent = "Please paste an article first.";
+        return;
+      }
+      run.disabled = true;
+      run.textContent = "Generating...";
+      summary.textContent = "Generating summary with Groq...";
+      try {
+        const resp = await fetch("/api/pr1/summarize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            article: text,
+            mode: document.getElementById("mode").value,
+            target_words: Number(length.value)
+          })
+        });
+        if (!resp.ok) {
+          const error = await resp.text();
+          throw new Error(error || "Request failed");
+        }
+        const data = await resp.json();
+        summary.textContent = data.summary || "Unable to generate summary.";
+        meter.style.width = `${Number(data.importance || 0)}%`;
+
+        const metrics = data.metrics || {};
+        document.getElementById("r1").textContent = Number(metrics.rouge1 || 0).toFixed(2);
+        document.getElementById("r2").textContent = Number(metrics.rouge2 || 0).toFixed(2);
+        document.getElementById("rl").textContent = Number(metrics.rougel || 0).toFixed(2);
+      } catch (err) {
+        summary.textContent = `Error: ${err.message}`;
+      } finally {
+        run.disabled = false;
+        run.textContent = "Generate Summary";
+      }
+    });
+  </script>
+</body>
+</html>
